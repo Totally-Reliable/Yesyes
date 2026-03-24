@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>vfxBrisk — Video Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #07050f;
+    --bg2: #0d0a1a;
+    --purple-deep: #1a0a2e;
+    --purple-mid: #4b1fa8;
+    --purple-glow: #7c3aff;
+    --purple-bright: #a855f7;
+    --purple-pale: #e9d5ff;
+    --accent: #c084fc;
+    --text: #f0eaff;
+    --muted: #9b88b8;
+    --border: rgba(124, 58, 255, 0.2);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    overflow-x: hidden;
+    cursor: none;
+  }
+
+  /* ── Custom Cursor ── */
+  .cursor {
+    position: fixed;
+    width: 12px; height: 12px;
+    background: var(--purple-bright);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%, -50%);
+    transition: transform 0.1s, width 0.2s, height 0.2s, opacity 0.2s;
+    mix-blend-mode: screen;
+  }
+  .cursor-ring {
+    position: fixed;
+    width: 36px; height: 36px;
+    border: 1px solid var(--purple-glow);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9998;
+    transform: translate(-50%, -50%);
+    transition: transform 0.12s ease-out, width 0.3s, height 0.3s, opacity 0.3s, border-color 0.3s;
+    opacity: 0.5;
+  }
+  body:hover .cursor { opacity: 1; }
+
+  /* ── Noise Grain ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    opacity: 0.35;
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.4rem 4rem;
+    background: linear-gradient(to bottom, rgba(7,5,15,0.95) 0%, transparent 100%);
+  }
+  .nav-logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.5rem;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .nav-logo span { color: var(--purple-bright); }
+  .nav-links { display: flex; gap: 2.5rem; list-style: none; }
+  .nav-links a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--accent); }
+
+  /* ── HERO ── */
+  #hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 0 4rem 0 4rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-bg {
+    position: absolute;
+    inset: 0;
+    background: 
+      radial-gradient(ellipse 80% 60% at 70% 50%, rgba(124,58,255,0.18) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 40% at 20% 80%, rgba(76,31,168,0.25) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 60% at 80% 10%, rgba(168,85,247,0.08) 0%, transparent 55%);
+  }
+
+  .hero-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(124,58,255,0.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124,58,255,0.07) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 80%);
+  }
+
+  .hero-tag {
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--purple-bright);
+    margin-bottom: 1.2rem;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.2s forwards;
+  }
+
+  .hero-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(5rem, 13vw, 11rem);
+    line-height: 0.9;
+    letter-spacing: 0.02em;
+    color: var(--text);
+    position: relative;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.4s forwards;
+  }
+
+  .hero-title .glow-word {
+    color: transparent;
+    -webkit-text-stroke: 1px var(--purple-glow);
+    text-shadow: 0 0 60px rgba(124,58,255,0.5), 0 0 120px rgba(124,58,255,0.2);
+    display: inline-block;
+  }
+
+  .hero-sub {
+    font-size: clamp(0.95rem, 1.5vw, 1.1rem);
+    color: var(--muted);
+    margin-top: 1.8rem;
+    max-width: 38ch;
+    line-height: 1.7;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.6s forwards;
+  }
+
+  .hero-cta {
+    margin-top: 2.8rem;
+    display: flex;
+    gap: 1.2rem;
+    align-items: center;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.8s forwards;
+  }
+
+  .btn-primary {
+    background: var(--purple-glow);
+    color: #fff;
+    padding: 0.85rem 2.2rem;
+    border-radius: 2px;
+    text-decoration: none;
+    font-size: 0.8rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 500;
+    transition: all 0.25s;
+    box-shadow: 0 0 30px rgba(124,58,255,0.4);
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-primary::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 50%);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .btn-primary:hover { 
+    background: var(--purple-bright); 
+    box-shadow: 0 0 50px rgba(168,85,247,0.6);
+    transform: translateY(-1px);
+  }
+  .btn-primary:hover::after { opacity: 1; }
+
+  .btn-ghost {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: color 0.2s;
+  }
+  .btn-ghost:hover { color: var(--accent); }
+  .btn-ghost .arrow { transition: transform 0.2s; }
+  .btn-ghost:hover .arrow { transform: translateX(4px); }
+
+  /* Timeline decoration */
+  .timeline-bar {
+    position: absolute;
+    bottom: 3rem;
+    left: 4rem;
+    right: 4rem;
+    height: 1px;
+    background: var(--border);
+    opacity: 0;
+    animation: fadeIn 1s 1.2s forwards;
+  }
+  .timeline-bar::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0;
+    width: 30%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, var(--purple-glow), transparent);
+    animation: scan 3s ease-in-out infinite;
+  }
+  .timeline-ticks {
+    position: absolute;
+    bottom: 3.5rem;
+    left: 4rem;
+    right: 4rem;
+    display: flex;
+    gap: 0;
+    justify-content: space-between;
+    opacity: 0;
+    animation: fadeIn 1s 1.4s forwards;
+  }
+  .tick {
+    width: 1px;
+    height: 8px;
+    background: rgba(124,58,255,0.3);
+  }
+  .tick:nth-child(5n) {
+    height: 14px;
+    background: rgba(124,58,255,0.5);
+  }
+
+  /* Floating orbs */
+  .orb {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    filter: blur(80px);
+    opacity: 0.12;
+    animation: float 8s ease-in-out infinite;
+  }
+  .orb1 { width: 500px; height: 500px; background: var(--purple-mid); right: -100px; top: 50%; transform: translateY(-50%); animation-delay: 0s; }
+  .orb2 { width: 300px; height: 300px; background: var(--purple-bright); right: 200px; top: 20%; animation-delay: -3s; }
+
+  /* ── SECTION BASE ── */
+  section { position: relative; overflow: hidden; }
+
+  .section-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--purple-bright);
+    margin-bottom: 0.8rem;
+  }
+
+  .section-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    line-height: 1;
+    letter-spacing: 0.03em;
+  }
+
+  /* ── SERVICES ── */
+  #services {
+    padding: 8rem 4rem;
+    background: var(--bg2);
+  }
+
+  .services-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 4rem;
+  }
+
+  .services-desc {
+    max-width: 30ch;
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.7;
+  }
+
+  .services-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+  }
+
+  .service-card {
+    background: var(--bg2);
+    padding: 2.5rem;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.3s;
+  }
+  .service-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--purple-glow), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .service-card:hover { background: rgba(124,58,255,0.06); }
+  .service-card:hover::before { opacity: 1; }
+
+  .service-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 3.5rem;
+    color: rgba(124,58,255,0.15);
+    line-height: 1;
+    margin-bottom: 1.5rem;
+    transition: color 0.3s;
+  }
+  .service-card:hover .service-num { color: rgba(124,58,255,0.35); }
+
+  .service-icon {
+    font-size: 1.8rem;
+    margin-bottom: 1rem;
+    display: block;
+  }
+
+  .service-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.5rem;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.8rem;
+    color: var(--text);
+  }
+
+  .service-desc {
+    font-size: 0.82rem;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  /* ── ABOUT ── */
+  #about {
+    padding: 8rem 4rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6rem;
+    align-items: center;
+  }
+
+  .about-visual {
+    position: relative;
+    height: 400px;
+  }
+
+  .about-card {
+    position: absolute;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 2rem 2.5rem;
+    border-radius: 2px;
+  }
+  .about-card-main {
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1.5rem;
+  }
+  .stat-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+  }
+  .stat-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 3.5rem;
+    color: var(--purple-bright);
+    line-height: 1;
+    text-shadow: 0 0 30px rgba(168,85,247,0.4);
+  }
+  .stat-label {
+    font-size: 0.75rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .about-card-float {
+    bottom: -1.5rem;
+    right: -1.5rem;
+    background: rgba(124,58,255,0.12);
+    border-color: rgba(124,58,255,0.3);
+    padding: 1.2rem 1.8rem;
+  }
+  .float-text {
+    font-size: 0.72rem;
+    color: var(--accent);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  .float-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.6rem;
+    color: var(--text);
+    margin-top: 0.2rem;
+  }
+
+  .about-text .section-label { margin-bottom: 0.6rem; }
+  .about-text .section-title { margin-bottom: 1.5rem; }
+  .about-body {
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.8;
+    margin-bottom: 1.5rem;
+  }
+
+  .skills-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+  }
+  .skill-tag {
+    border: 1px solid var(--border);
+    padding: 0.35rem 0.9rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-radius: 1px;
+    transition: all 0.2s;
+  }
+  .skill-tag:hover {
+    border-color: var(--purple-glow);
+    color: var(--accent);
+    background: rgba(124,58,255,0.08);
+  }
+
+  /* ── TESTIMONIALS ── */
+  #testimonials {
+    padding: 8rem 4rem;
+    background: var(--bg2);
+  }
+
+  .testimonials-header {
+    text-align: center;
+    margin-bottom: 4rem;
+  }
+
+  .testi-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .testi-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 2.2rem 2.5rem;
+    position: relative;
+    transition: border-color 0.3s, transform 0.3s;
+  }
+  .testi-card:hover {
+    border-color: rgba(124,58,255,0.4);
+    transform: translateY(-3px);
+  }
+  .testi-card::before {
+    content: '"';
+    position: absolute;
+    top: 1rem; right: 1.5rem;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 5rem;
+    color: rgba(124,58,255,0.08);
+    line-height: 1;
+  }
+
+  .testi-quote {
+    font-size: 1.05rem;
+    line-height: 1.6;
+    color: var(--text);
+    font-style: italic;
+    font-weight: 300;
+    margin-bottom: 1.5rem;
+  }
+
+  .testi-author {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+  }
+  .testi-avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--purple-mid), var(--purple-bright));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1rem;
+    color: #fff;
+    flex-shrink: 0;
+  }
+  .testi-name {
+    font-weight: 500;
+    font-size: 0.85rem;
+    color: var(--accent);
+  }
+  .testi-role {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: 0.1rem;
+    letter-spacing: 0.05em;
+  }
+
+  .testi-card.featured {
+    grid-column: span 2;
+    background: rgba(124,58,255,0.05);
+    border-color: rgba(124,58,255,0.3);
+  }
+
+  /* ── PROCESS ── */
+  #process {
+    padding: 8rem 4rem;
+  }
+
+  .process-header {
+    margin-bottom: 5rem;
+  }
+
+  .process-steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    position: relative;
+  }
+
+  .process-steps::before {
+    content: '';
+    position: absolute;
+    top: 2.2rem;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), var(--border), transparent);
+  }
+
+  .step {
+    padding: 0 1.5rem;
+    text-align: center;
+    position: relative;
+  }
+
+  .step-dot {
+    width: 44px; height: 44px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.5rem;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1rem;
+    color: var(--purple-bright);
+    position: relative;
+    z-index: 1;
+    transition: all 0.3s;
+  }
+  .step:hover .step-dot {
+    border-color: var(--purple-glow);
+    background: rgba(124,58,255,0.15);
+    box-shadow: 0 0 20px rgba(124,58,255,0.3);
+  }
+
+  .step-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.2rem;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.6rem;
+  }
+  .step-desc {
+    font-size: 0.78rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── CONTACT ── */
+  #contact {
+    padding: 8rem 4rem;
+    background: var(--bg2);
+    text-align: center;
+    position: relative;
+  }
+
+  .contact-bg {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 70% 60% at 50% 50%, rgba(124,58,255,0.1) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .contact-inner {
+    position: relative;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .contact-sub {
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.7;
+    margin-top: 1.2rem;
+    margin-bottom: 3rem;
+  }
+
+  .contact-links {
+    display: flex;
+    justify-content: center;
+    gap: 1.2rem;
+    flex-wrap: wrap;
+  }
+
+  .contact-link {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.9rem 2rem;
+    border: 1px solid var(--border);
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    transition: all 0.25s;
+    border-radius: 2px;
+  }
+  .contact-link:hover {
+    border-color: var(--purple-glow);
+    background: rgba(124,58,255,0.1);
+    color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(124,58,255,0.2);
+  }
+  .contact-link.primary {
+    background: var(--purple-glow);
+    border-color: var(--purple-glow);
+    box-shadow: 0 0 30px rgba(124,58,255,0.3);
+  }
+  .contact-link.primary:hover {
+    background: var(--purple-bright);
+    border-color: var(--purple-bright);
+    color: #fff;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    padding: 2rem 4rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .footer-logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.2rem;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+  }
+  .footer-copy {
+    font-size: 0.72rem;
+    color: rgba(155,136,184,0.4);
+    letter-spacing: 0.05em;
+  }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0) translateX(0); }
+    33% { transform: translateY(-30px) translateX(15px); }
+    66% { transform: translateY(15px) translateX(-10px); }
+  }
+  @keyframes scan {
+    0% { left: -30%; }
+    100% { left: 100%; }
+  }
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 20px rgba(124,58,255,0.3); }
+    50% { box-shadow: 0 0 40px rgba(124,58,255,0.6), 0 0 80px rgba(124,58,255,0.2); }
+  }
+
+  /* Reveal on scroll */
+  .reveal {
+    opacity: 0;
+    transform: translateY(28px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    nav { padding: 1.2rem 1.8rem; }
+    #hero { padding: 0 1.8rem; }
+    .timeline-bar, .timeline-ticks { left: 1.8rem; right: 1.8rem; }
+    #services { padding: 5rem 1.8rem; }
+    .services-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
+    .services-grid { grid-template-columns: 1fr; }
+    #about { grid-template-columns: 1fr; padding: 5rem 1.8rem; gap: 3rem; }
+    .about-visual { height: 250px; }
+    #testimonials { padding: 5rem 1.8rem; }
+    .testi-grid { grid-template-columns: 1fr; }
+    .testi-card.featured { grid-column: span 1; }
+    #process { padding: 5rem 1.8rem; }
+    .process-steps { grid-template-columns: 1fr 1fr; gap: 3rem; }
+    .process-steps::before { display: none; }
+    #contact { padding: 5rem 1.8rem; }
+    footer { padding: 1.5rem 1.8rem; flex-direction: column; gap: 0.5rem; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Custom Cursor -->
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
+<!-- Navigation -->
+<nav>
+  <a href="#hero" class="nav-logo">vfx<span>Brisk</span></a>
+  <ul class="nav-links">
+    <li><a href="#services">Services</a></li>
+    <li><a href="#about">About</a></li>
+    <li><a href="#testimonials">Reviews</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ul>
+</nav>
+
+<!-- Hero -->
+<section id="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-grid"></div>
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+
+  <div style="position:relative; z-index:2;">
+    <p class="hero-tag">— Video Editor & VFX Artist</p>
+    <h1 class="hero-title">
+      FAST.<br>
+      <span class="glow-word">CLEAN.</span><br>
+      ELITE.
+    </h1>
+    <p class="hero-sub">
+      Cinematic cuts, punchy VFX, and story-driven edits that make your content impossible to skip.
+    </p>
+    <div class="hero-cta">
+      <a href="https://x.com/vfxbrisk" target="_blank" class="btn-primary">Work With Brisk</a>
+      <a href="#services" class="btn-ghost">Explore Services <span class="arrow">→</span></a>
+    </div>
+  </div>
+
+  <!-- Timeline decoration -->
+  <div class="timeline-ticks">
+    <div class="tick"></div><div class="tick"></div><div class="tick"></div><div class="tick"></div><div class="tick"></div>
+    <div class="tick"></div><div class="tick"></div><div class="tick"></div><div class="tick"></div><div class="tick"></div>
+    <div class="tick"></div><div class="tick"></div><div class="tick"></div><div class="tick"></div><div class="tick"></div>
+    <div class="tick"></div><div class="tick"></div><div class="tick"></div><div class="tick"></div><div class="tick"></div>
+    <div class="tick"></div><div class="tick"></div><div class="tick"></div><div class="tick"></div><div class="tick"></div>
+    <div class="tick"></div><div class="tick"></div><div class="tick"></div><div class="tick"></div><div class="tick"></div>
+  </div>
+  <div class="timeline-bar"></div>
+</section>
+
+<!-- Services -->
+<section id="services">
+  <div class="services-header reveal">
+    <div>
+      <p class="section-label">What I Do</p>
+      <h2 class="section-title">Services</h2>
+    </div>
+    <p class="services-desc">Premium editing tailored to your vision — delivered fast, without compromising quality.</p>
+  </div>
+  <div class="services-grid reveal">
+    <div class="service-card">
+      <div class="service-num">01</div>
+      <span class="service-icon">🎬</span>
+      <div class="service-name">Video Editing</div>
+      <p class="service-desc">Tight cuts, dynamic pacing, and seamless transitions that keep viewers hooked from first frame to last.</p>
+    </div>
+    <div class="service-card">
+      <div class="service-num">02</div>
+      <span class="service-icon">✨</span>
+      <div class="service-name">VFX & Motion</div>
+      <p class="service-desc">Eye-catching visual effects, smooth motion graphics, and compositing that elevates your production value.</p>
+    </div>
+    <div class="service-card">
+      <div class="service-num">03</div>
+      <span class="service-icon">🎨</span>
+      <div class="service-name">Color Grading</div>
+      <p class="service-desc">Cinematic color treatment and tone-matching that gives every project a distinct, polished look.</p>
+    </div>
+    <div class="service-card">
+      <div class="service-num">04</div>
+      <span class="service-icon">🔊</span>
+      <div class="service-name">Sound Design</div>
+      <p class="service-desc">Custom sound effects, audio syncing, and mix balancing so your video hits as hard as it looks.</p>
+    </div>
+    <div class="service-card">
+      <div class="service-num">05</div>
+      <span class="service-icon">📱</span>
+      <div class="service-name">Short-Form Content</div>
+      <p class="service-desc">Reels, Shorts, TikToks — optimized for engagement, virality, and platform-specific formats.</p>
+    </div>
+    <div class="service-card">
+      <div class="service-num">06</div>
+      <span class="service-icon">⚡</span>
+      <div class="service-name">Fast Turnaround</div>
+      <p class="service-desc">Rush delivery without the rush-job quality. Reliable timelines you can actually plan your releases around.</p>
+    </div>
+  </div>
+</section>
+
+<!-- About -->
+<section id="about">
+  <div class="about-visual reveal">
+    <div class="about-card about-card-main">
+      <div class="stat-row">
+        <span class="stat-num">50+</span>
+        <span class="stat-label">Projects Completed</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-num">24H</span>
+        <span class="stat-label">Avg. Turnaround</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-num">100%</span>
+        <span class="stat-label">Client Satisfaction</span>
+      </div>
+    </div>
+    <div class="about-card about-card-float">
+      <div class="float-text">Currently</div>
+      <div class="float-val">Available for Gigs</div>
+    </div>
+  </div>
+  <div class="about-text reveal">
+    <p class="section-label">Behind the Timeline</p>
+    <h2 class="section-title">Meet Brisk</h2>
+    <p class="about-body">
+      I'm a video editor and VFX artist obsessed with making content that cuts through the noise. Whether it's a creator's vlog, a brand spot, or a cinematic short — I bring the same energy and precision to every frame.
+    </p>
+    <p class="about-body">
+      Speed without sloppiness. Quality without the wait. That's the Brisk guarantee.
+    </p>
+    <div class="skills-list">
+      <span class="skill-tag">Premiere Pro</span>
+      <span class="skill-tag">After Effects</span>
+      <span class="skill-tag">DaVinci Resolve</span>
+      <span class="skill-tag">Motion Graphics</span>
+      <span class="skill-tag">Compositing</span>
+      <span class="skill-tag">Lumetri Color</span>
+    </div>
+  </div>
+</section>
+
+<!-- Testimonials -->
+<section id="testimonials">
+  <div class="testimonials-header reveal">
+    <p class="section-label">Client Words</p>
+    <h2 class="section-title">What They Say</h2>
+  </div>
+  <div class="testi-grid reveal">
+    <div class="testi-card">
+      <p class="testi-quote">He's really good — the edit came out exactly how I pictured it, honestly better. Will keep coming back.</p>
+      <div class="testi-author">
+        <div class="testi-avatar">R</div>
+        <div>
+          <div class="testi-name">Ray</div>
+          <div class="testi-role">Content Creator</div>
+        </div>
+      </div>
+    </div>
+    <div class="testi-card">
+      <p class="testi-quote">He's fast. Like, actually fast. Didn't expect that turnaround from someone who clearly cares about quality.</p>
+      <div class="testi-author">
+        <div class="testi-avatar">M</div>
+        <div>
+          <div class="testi-name">Mahil</div>
+          <div class="testi-role">YouTuber</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Process -->
+<section id="process">
+  <div class="process-header reveal">
+    <p class="section-label">How It Works</p>
+    <h2 class="section-title">The Process</h2>
+  </div>
+  <div class="process-steps reveal">
+    <div class="step">
+      <div class="step-dot">01</div>
+      <div class="step-title">DM Me</div>
+      <p class="step-desc">Reach out on X with your project brief, footage, and deadline. I respond fast.</p>
+    </div>
+    <div class="step">
+      <div class="step-dot">02</div>
+      <div class="step-title">Brief &amp; Quote</div>
+      <p class="step-desc">We align on the vision, scope, and pricing. No hidden fees, no surprises.</p>
+    </div>
+    <div class="step">
+      <div class="step-dot">03</div>
+      <div class="step-title">Edit &amp; Review</div>
+      <p class="step-desc">I edit and send you a draft for feedback. Revisions until you're happy.</p>
+    </div>
+    <div class="step">
+      <div class="step-dot">04</div>
+      <div class="step-title">Delivered</div>
+      <p class="step-desc">Final file in your hands, export-ready in whatever format you need.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Contact -->
+<section id="contact">
+  <div class="contact-bg"></div>
+  <div class="contact-inner reveal">
+    <p class="section-label">Get In Touch</p>
+    <h2 class="section-title">Let's Elevate<br>Your Video</h2>
+    <p class="contact-sub">
+      Have a project in mind? DM me on X or shoot an email. I look forward to working with you.
+    </p>
+    <div class="contact-links">
+      <a href="https://x.com/vfxbrisk" target="_blank" class="contact-link primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.745l7.74-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        DM on X / Twitter
+      </a>
+      <a href="mailto:vfxbrisk@gmail.com" class="contact-link">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        Send an Email
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="footer-logo">vfxBrisk</div>
+  <div class="footer-copy">© 2025 vfxBrisk — All rights reserved</div>
+</footer>
+
+<script>
+  // Custom cursor
+  const cursor = document.getElementById('cursor');
+  const ring = document.getElementById('cursorRing');
+  let mx = 0, my = 0, rx = 0, ry = 0;
+
+  document.addEventListener('mousemove', e => {
+    mx = e.clientX; my = e.clientY;
+    cursor.style.left = mx + 'px';
+    cursor.style.top = my + 'px';
+  });
+
+  function animRing() {
+    rx += (mx - rx) * 0.12;
+    ry += (my - ry) * 0.12;
+    ring.style.left = rx + 'px';
+    ring.style.top = ry + 'px';
+    requestAnimationFrame(animRing);
+  }
+  animRing();
+
+  document.querySelectorAll('a, button').forEach(el => {
+    el.addEventListener('mouseenter', () => {
+      cursor.style.width = '6px';
+      cursor.style.height = '6px';
+      ring.style.width = '54px';
+      ring.style.height = '54px';
+      ring.style.borderColor = 'var(--purple-bright)';
+      ring.style.opacity = '0.8';
+    });
+    el.addEventListener('mouseleave', () => {
+      cursor.style.width = '12px';
+      cursor.style.height = '12px';
+      ring.style.width = '36px';
+      ring.style.height = '36px';
+      ring.style.borderColor = 'var(--purple-glow)';
+      ring.style.opacity = '0.5';
+    });
+  });
+
+  // Scroll reveal
+  const reveals = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry, i) => {
+      if (entry.isIntersecting) {
+        setTimeout(() => entry.target.classList.add('visible'), i * 80);
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  reveals.forEach(el => observer.observe(el));
+
+  // Nav active highlight on scroll
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('.nav-links a');
+  const scrollObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        navLinks.forEach(a => {
+          a.style.color = a.getAttribute('href') === '#' + entry.target.id ? 'var(--accent)' : '';
+        });
+      }
+    });
+  }, { threshold: 0.4 });
+  sections.forEach(s => scrollObserver.observe(s));
+</script>
+</body>
+</html>
